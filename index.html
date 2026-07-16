@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Road Registry — Local Body Asset Management</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mapbox/shp-write@0.3.4/shpwrite.js"></script>
+
+<style>
+:root{
+  --navy:#16324a;
+  --navy-2:#1e4363;
+  --teal:#2a9d8f;
+  --teal-dk:#20776c;
+  --amber:#c98a1f;
+  --amber-bg:#fdf1de;
+  --bg:#f4f6f8;
+  --card:#ffffff;
+  --ink:#1f2933;
+  --ink-soft:#5a6672;
+  --line:#dfe4e8;
+  --danger:#b0392f;
+  --radius:10px;
+  --mono: ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--ink);
+  -webkit-tap-highlight-color:transparent;
+}
+button, input, select, textarea{font-family:inherit; font-size:15px;}
+h1,h2,h3,h4{margin:0 0 8px 0; letter-spacing:-0.01em;}
+
+/* ---- App shell ---- */
+#app{display:flex; min-height:100vh;}
+
+.sidebar{
+  width:220px; background:linear-gradient(180deg,var(--navy),var(--navy-2));
+  color:#eaf1f6; flex-shrink:0; display:flex; flex-direction:column;
+  position:sticky; top:0; height:100vh;
+}
+.brand{
+  padding:18px 16px 14px; border-bottom:1px solid rgba(255,255,255,.12);
+  display:flex; align-items:center; gap:10px;
+}
+.brand-mark{width:30px;height:30px;flex-shrink:0;}
+.brand-text{line-height:1.15;}
+.brand-text b{display:block; font-size:15px;}
+.brand-text span{font-size:11px; opacity:.75;}
+
+.nav{flex:1; padding:10px 8px; overflow-y:auto;}
+.nav button{
+  width:100%; text-align:left; background:none; border:none; color:#dce7ee;
+  padding:11px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center;
+  gap:10px; font-size:14px; margin-bottom:2px; opacity:.85;
+}
+.nav button:hover{background:rgba(255,255,255,.08); opacity:1;}
+.nav button.active{background:var(--teal); color:#fff; opacity:1; font-weight:600;}
+.nav .ic{width:18px; text-align:center; font-size:15px;}
+
+.main{flex:1; min-width:0; padding:18px 22px 90px;}
+.topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;}
+.topbar h1{font-size:20px;}
+.topbar .sub{color:var(--ink-soft); font-size:13px;}
+
+.view{display:none;}
+.view.active{display:block;}
+
+.card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px;}
+.card h3{font-size:14px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); margin-bottom:12px;}
+
+.grid{display:grid; gap:12px;}
+.grid.cols-2{grid-template-columns:1fr 1fr;}
+.grid.cols-3{grid-template-columns:repeat(3,1fr);}
+.grid.cols-4{grid-template-columns:repeat(4,1fr);}
+@media(max-width:900px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr 1fr;}}
+@media(max-width:600px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr;}}
+
+label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:4px; font-weight:600;}
+.field{margin-bottom:10px;}
+input[type=text], input[type=number], input[type=password], input[type=date], select, textarea{
+  width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--ink);
+}
+textarea{resize:vertical; min-height:60px;}
+input:focus, select:focus, textarea:focus{outline:2px solid var(--teal); outline-offset:1px; border-color:var(--teal);}
+
+.row-inline{display:flex; gap:6px; align-items:center;}
+.row-inline select{flex:1;}
+
+button.btn{
+  background:var(--teal); color:#fff; border:none; padding:9px 14px; border-radius:7px;
+  cursor:pointer; font-weight:600; font-size:13.5px; display:inline-flex; align-items:center; gap:6px;
+}
+button.btn:hover{background:var(--teal-dk);}
+button.btn.secondary{background:#fff; color:var(--navy); border:1px solid var(--line);}
+button.btn.secondary:hover{background:#f0f2f4;}
+button.btn.danger{background:var(--danger);}
+button.btn.danger:hover{background:#8c2c24;}
+button.btn.amber{background:var(--amber);}
+button.btn.sm{padding:5px 9px; font-size:12px;}
+button.icon-btn{background:none;border:none;cursor:pointer;padding:4px 7px;border-radius:6px;color:var(--ink-soft);}
+button.icon-btn:hover{background:#eef1f3; color:var(--ink);}
+.btnbar{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th,td{padding:8px 9px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap;}
+th{background:#f0f3f5; color:var(--ink-soft); font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; position:sticky; top:0;}
+tbody tr:hover{background:#f7fbfa;}
+.table-wrap{overflow-x:auto; max-width:100%;}
+
+.chip{display:inline-block; padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:700; border-left:4px solid var(--teal); background:#eef8f6; color:var(--teal-dk);}
+.chip.locked{background:var(--amber-bg); color:var(--amber); border-left-color:var(--amber);}
+
+.stat{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px;}
+.stat .n{font-family:var(--mono); font-size:26px; font-weight:700; color:var(--navy);}
+.stat .l{font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+
+#dashMap, #formMap{height:320px; border-radius:8px; margin-top:8px; border:1px solid var(--line);}
+
+.modal-bg{position:fixed; inset:0; background:rgba(15,25,35,.5); display:none; align-items:center; justify-content:center; z-index:999; padding:16px;}
+.modal-bg.open{display:flex;}
+.modal{background:#fff; border-radius:12px; padding:20px; width:100%; max-width:420px; max-height:88vh; overflow-y:auto;}
+.modal h3{font-size:16px; margin-bottom:14px;}
+
+.toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--navy); color:#fff; padding:10px 18px; border-radius:8px; font-size:13.5px; z-index:1200; opacity:0; transition:opacity .25s; pointer-events:none;}
+.toast.show{opacity:1;}
+
+.master-tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;}
+.master-tabs button{background:#eef1f3; border:none; padding:7px 12px; border-radius:20px; font-size:12.5px; cursor:pointer; color:var(--ink-soft); font-weight:600;}
+.master-tabs button.active{background:var(--navy); color:#fff;}
+
+.empty{text-align:center; padding:30px 10px; color:var(--ink-soft);}
+.small{font-size:12px; color:var(--ink-soft);}
+.gps-status{font-size:12px; padding:6px 8px; border-radius:6px; background:#f0f3f5; margin-top:4px;}
+.gps-status.ok{background:#eef8f6; color:var(--teal-dk);}
+.gps-status.bad{background:#fdecea; color:var(--danger);}
+
+.bottom-nav{display:none;}
+@media(max-width:820px){
+  .sidebar{display:none;}
+  .main{padding:12px 12px 78px;}
+  .bottom-nav{
+    display:flex; position:fixed; bottom:0; left:0; right:0; background:var(--navy); z-index:500;
+    justify-content:space-around; padding:6px 2px; box-shadow:0 -2px 8px rgba(0,0,0,.15);
+  }
+  .bottom-nav button{background:none; border:none; color:#cfe0ea; font-size:10.5px; display:flex; flex-direction:column; align-items:center; gap:2px; padding:5px 4px; flex:1;}
+  .bottom-nav button.active{color:#fff;}
+  .bottom-nav .ic{font-size:17px;}
+}
+.hide-mobile{}
+@media(max-width:600px){.hide-mobile{display:none;}}
+
+.path-badge{display:inline-flex; align-items:center; gap:5px; background:#eef1f3; padding:5px 10px; border-radius:6px; font-size:12.5px; font-family:var(--mono);}
+
+fieldset{border:1px solid var(--line); border-radius:8px; padding:12px; margin:0 0 12px;}
+legend{padding:0 6px; font-size:12.5px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#2a9d8f"/><path d="M4 24 L14 8 L18 8 L28 24" stroke="#0e2a35" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="16" y1="12" x2="16" y2="24" stroke="#eaf1f6" stroke-width="2" stroke-dasharray="2.5,2.5"/></svg>
+      <div class="brand-text"><b>Road Registry</b><span>Local Body Asset System</span></div>
+    </div>
+    <div class="nav" id="navList"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="viewTitle">Dashboard</h1>
+        <div class="sub" id="viewSub">Overview of registered roads</div>
+      </div>
+      <div class="row-inline">
+        <input type="text" id="globalSearch" placeholder="Search road, village, panchayat..." style="width:230px" oninput="renderDashboard()">
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="view active" id="view-dashboard">
+      <div class="grid cols-4" id="statBar"></div>
+
+      <div class="card">
+        <h3>Filters</h3>
+        <div class="grid cols-4" id="filterBar"></div>
+        <div class="btnbar">
+          <button class="btn secondary sm" onclick="clearFilters()">Clear filters</button>
+          <button class="btn sm" onclick="switchView('add')">+ Add Road</button>
+          <button class="btn secondary sm" onclick="toggleDashMap()">🗺 Toggle map view</button>
+        </div>
+      </div>
+
+      <div class="card" id="dashMapCard" style="display:none;">
+        <h3>Road Map</h3>
+        <div id="dashMap"></div>
+      </div>
+
+      <div class="card">
+        <h3>Registered Roads</h3>
+        <div class="table-wrap">
+          <table id="roadsTable">
+            <thead><tr>
+              <th>Road Name</th><th>Village</th><th>Panchayat</th><th>Constituency</th>
+              <th>Classification</th><th>Type</th><th>Length (m)</th><th>Width (m)</th>
+              <th>Scheme</th><th>Status</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="roadsTbody"></tbody>
+          </table>
+          <div class="empty" id="roadsEmpty" style="display:none;">No roads match the current filters. Try clearing filters or add a new road.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD / EDIT ROAD -->
+    <div class="view" id="view-add">
+      <form id="roadForm" onsubmit="return saveRoadForm(event)">
+        <input type="hidden" id="f_id">
+
+        <fieldset>
+          <legend>Location</legend>
+          <div class="grid cols-4">
+            <div class="field"><label>Commune</label><div class="row-inline">
+              <select id="f_commune" onchange="cascadeFilter('commune')"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('communes','f_commune')">+</button>
+            </div></div>
+            <div class="field"><label>Constituency</label><div class="row-inline">
+              <select id="f_constituency"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('constituencies','f_constituency')">+</button>
+            </div></div>
+            <div class="field"><label>Village Panchayat</label><div class="row-inline">
+              <select id="f_panchayat" onchange="cascadeFilter('panchayat')"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('panchayats','f_panchayat')">+</button>
+            </div></div>
+            <div class="field"><label>Village</label><div class="row-inline">
+              <select id="f_village"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('villages','f_village')">+</button>
+            </div></div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Road Identity</legend>
+          <div class="grid cols-3">
+            <div class="field"><label>Classification of Road</label><div class="row-inline">
+              <select id="f_classification"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('classifications','f_classification')">+</button>
+            </div></div>
+            <div class="field"><label>Road Owning Agency</label><div class="row-inline">
+              <select id="f_agency"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('agencies','f_agency')">+</button>
+            </div></div>
+            <div class="field"><label>Type of Road</label><div class="row-inline">
+              <select id="f_roadtype"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('roadTypes','f_roadtype')">+</button>
+            </div></div>
+          </div>
+          <div class="grid cols-3">
+            <div class="field"><label>Name of the Road</label><input type="text" id="f_name" required></div>
+            <div class="field"><label>Length of Road (metres)</label><input type="number" id="f_length" min="0" step="0.1"></div>
+            <div class="field"><label>Width of Road (metres)</label><input type="number" id="f_width" min="0" step="0.1"></div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Attributes</legend>
+          <div class="grid cols-4">
+            <div class="field"><label>Year of Laying</label><input type="number" id="f_year" min="1900" max="2100" placeholder="e.g. 2019"></div>
+            <div class="field"><label>Work Type</label><div class="row-inline">
+              <select id="f_worktype"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('workTypes','f_worktype')">+</button>
+            </div></div>
+            <div class="field"><label>Scheme</label><div class="row-inline">
+              <select id="f_scheme"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('schemes','f_scheme')">+</button>
+            </div></div>
+            <div class="field"><label>Drain Available</label><select id="f_drainavail" onchange="toggleDrainType()">
+              <option value="no">No</option><option value="yes">Yes</option>
+            </select></div>
+          </div>
+          <div class="field" id="drainTypeWrap" style="display:none; max-width:260px;">
+            <label>Drain Type</label><div class="row-inline">
+              <select id="f_draintype"></select>
+              <button type="button" class="icon-btn" onclick="quickAddMaster('drainTypes','f_draintype')">+</button>
+            </div>
+          </div>
+          <div class="field"><label>Remarks</label><textarea id="f_remarks"></textarea></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Geotagging &amp; Traverse Path</legend>
+          <div class="grid cols-2">
+            <div>
+              <div class="field">
+                <label>Starting Point</label>
+                <div class="row-inline">
+                  <span class="path-badge" id="startPtBadge">not captured</span>
+                  <button type="button" class="btn sm secondary" onclick="captureFixedPoint('start')">📍 Capture GPS</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Ending Point</label>
+                <div class="row-inline">
+                  <span class="path-badge" id="endPtBadge">not captured</span>
+                  <button type="button" class="btn sm secondary" onclick="captureFixedPoint('end')">📍 Capture GPS</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Traverse Path (walk the road to trace it)</label>
+                <div class="row-inline" style="flex-wrap:wrap; gap:6px;">
+                  <span class="path-badge" id="pathBadge">0 points</span>
+                  <button type="button" class="btn sm" id="traceBtn" onclick="toggleTracing()">▶ Start Tracing</button>
+                  <button type="button" class="btn sm secondary" onclick="addWaypointManual()">+ Add Waypoint</button>
+                  <button type="button" class="btn sm secondary" onclick="clearPath()">Clear Path</button>
+                </div>
+                <div class="gps-status" id="gpsStatus">GPS idle.</div>
+              </div>
+            </div>
+            <div>
+              <div id="formMap"></div>
+              <div class="small" style="margin-top:6px;">Auto-computed distance from traced path: <b id="autoDistance">—</b></div>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Lock (optional)</legend>
+          <div class="row-inline">
+            <label style="margin:0;"><input type="checkbox" id="f_locked" onchange="toggleLockField()"> Lock this entry with a password</label>
+          </div>
+          <div class="field" id="lockPwWrap" style="display:none; max-width:260px; margin-top:8px;">
+            <label>Set Password</label><input type="password" id="f_password" placeholder="Enter password">
+          </div>
+        </fieldset>
+
+        <div class="btnbar">
+          <button type="submit" class="btn">💾 Save Road Entry</button>
+          <button type="button" class="btn secondary" onclick="switchView('dashboard')">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- MASTERS -->
+    <div class="view" id="view-masters">
+      <div class="card">
+        <div class="master-tabs" id="masterTabs"></div>
+        <div class="row-inline" style="margin-bottom:12px;">
+          <input type="text" id="masterNewName" placeholder="New entry name">
+          <select id="masterNewParent" style="display:none; max-width:220px;"></select>
+          <button class="btn sm" onclick="addMasterItem()">+ Add</button>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Name</th><th class="hide-mobile">Linked To</th><th>Actions</th></tr></thead>
+          <tbody id="masterTbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT / EXPORT -->
+    <div class="view" id="view-io">
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Export Filtered Roads</h3>
+          <p class="small">Exports respect the filters currently set on the Dashboard.</p>
+          <div class="btnbar">
+            <button class="btn" onclick="exportExcel()">📊 Excel (.xlsx)</button>
+            <button class="btn secondary" onclick="exportCSV()">CSV</button>
+            <button class="btn secondary" onclick="exportPDF()">PDF</button>
+            <button class="btn secondary" onclick="exportKML()">KML</button>
+            <button class="btn secondary" onclick="exportShapefile()">Shapefile (.zip)</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Import from Excel (Mobile ⇄ Computer Sync)</h3>
+          <p class="small">Import an .xlsx exported by this app on another device. Existing records with the same ID are updated; new ones are added.</p>
+          <input type="file" id="importFile" accept=".xlsx,.xls">
+          <div class="btnbar"><button class="btn" onclick="importExcel()">⬆ Import &amp; Sync</button></div>
+          <div id="importStatus" class="small" style="margin-top:8px;"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Full Backup (Masters + Roads)</h3>
+        <p class="small">Use this to move the entire registry — including your Commune/Constituency/Panchayat/Village lists — between phone and computer.</p>
+        <div class="btnbar">
+          <button class="btn" onclick="exportBackup()">⬇ Export Full Backup (.json)</button>
+          <input type="file" id="backupFile" accept=".json" style="max-width:220px;">
+          <button class="btn secondary" onclick="importBackup()">⬆ Restore Backup</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORT -->
+    <div class="view" id="view-report">
+      <div class="card">
+        <h3>Summary Report</h3>
+        <div class="grid cols-3">
+          <div class="field"><label>Group By</label>
+            <select id="reportGroupBy">
+              <option value="panchayat">Village Panchayat</option>
+              <option value="constituency">Constituency</option>
+              <option value="classification">Classification</option>
+              <option value="roadtype">Type of Road</option>
+              <option value="scheme">Scheme</option>
+            </select>
+          </div>
+        </div>
+        <div class="btnbar"><button class="btn" onclick="renderReport()">Generate Report</button>
+          <button class="btn secondary" onclick="exportReportPDF()">⬇ Export Report as PDF</button></div>
+      </div>
+      <div class="card">
+        <div class="table-wrap"><table><thead><tr><th>Group</th><th>No. of Roads</th><th>Total Length (m)</th><th>Total Length (km)</th></tr></thead>
+        <tbody id="reportTbody"></tbody></table></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="bottom-nav" id="bottomNav"></div>
+
+<!-- Unlock modal -->
+<div class="modal-bg" id="unlockModal">
+  <div class="modal">
+    <h3>🔒 Locked Entry</h3>
+    <p class="small">This road entry is password-protected. Enter the password to continue.</p>
+    <div class="field"><input type="password" id="unlockPw" placeholder="Password"></div>
+    <div class="btnbar">
+      <button class="btn" onclick="attemptUnlock()">Unlock</button>
+      <button class="btn secondary" onclick="closeUnlockModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- View road modal -->
+<div class="modal-bg" id="viewModal">
+  <div class="modal" style="max-width:520px;">
+    <h3 id="viewModalTitle">Road Details</h3>
+    <div id="viewModalBody"></div>
+    <div class="btnbar"><button class="btn secondary" onclick="closeViewModal()">Close</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   DATA LAYER
+   ========================================================= */
+const LS_MASTERS = 'rr_masters_v1';
+const LS_ROADS = 'rr_roads_v1';
+
+const MASTER_TYPES = [
+  {key:'communes', label:'Commune', parent:null},
+  {key:'constituencies', label:'Constituency', parent:null},
+  {key:'panchayats', label:'Village Panchayat', parent:'communes'},
+  {key:'villages', label:'Village', parent:'panchayats'},
+  {key:'classifications', label:'Classification of Road', parent:null},
+  {key:'agencies', label:'Road Owning Agency', parent:null},
+  {key:'roadTypes', label:'Type of Road', parent:null},
+  {key:'workTypes', label:'Work Type', parent:null},
+  {key:'schemes', label:'Scheme', parent:null},
+  {key:'drainTypes', label:'Drain Type', parent:null},
+];
+
+function defaultMasters(){
+  const mk = (names) => names.map(n => ({id: uid(), name:n, parentId:null}));
+  return {
+    communes: mk(['Commune 1']),
+    constituencies: mk(['Constituency 1']),
+    panchayats: mk(['Panchayat 1']),
+    villages: mk(['Village 1']),
+    classifications: mk(['Village Road','Panchayat Union Road','Main Road','Link Road']),
+    agencies: mk(['Panchayat Union','PWD','Municipality','RDD','NABARD Executing Agency']),
+    roadTypes: mk(['BT (Black Top)','CC (Cement Concrete)','WBM','Gravel','Earthen']),
+    workTypes: mk(['New Formation','Upgradation','Renewal','Widening','Maintenance']),
+    schemes: mk(['NABARD','RIDF','SPA','State Plan','MLALAD','MPLAD','Finance Commission']),
+    drainTypes: mk(['L Drain','U Drain','Kutcha Drain','None']),
+  };
+}
+
+function uid(){ return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+
+let MASTERS = JSON.parse(localStorage.getItem(LS_MASTERS) || 'null') || defaultMasters();
+let ROADS = JSON.parse(localStorage.getItem(LS_ROADS) || 'null') || [];
+
+function saveMasters(){ localStorage.setItem(LS_MASTERS, JSON.stringify(MASTERS)); }
+function saveRoads(){ localStorage.setItem(LS_ROADS, JSON.stringify(ROADS)); }
+
+function nameOf(typeKey, id){
+  const item = (MASTERS[typeKey]||[]).find(x=>x.id===id);
+  return item ? item.name : '';
+}
+
+/* =========================================================
+   NAV / VIEW SWITCHING
+   ========================================================= */
+const VIEWS = [
+  {key:'dashboard', label:'Dashboard', ic:'📊', title:'Dashboard', sub:'Overview of registered roads'},
+  {key:'add', label:'Add Road', ic:'➕', title:'Add / Edit Road', sub:'Register a new road or update an existing entry'},
+  {key:'masters', label:'Master Data', ic:'🗂', title:'Master Data', sub:'Manage dropdown lists: communes, constituencies, panchayats, villages & more'},
+  {key:'io', label:'Import / Export', ic:'🔄', title:'Import / Export', sub:'Sync data between mobile and computer, and export reports'},
+  {key:'report', label:'Report', ic:'📄', title:'Reports', sub:'Grouped summary reports'},
+];
+
+function buildNav(){
+  const nav = document.getElementById('navList');
+  const bnav = document.getElementById('bottomNav');
+  nav.innerHTML=''; bnav.innerHTML='';
+  VIEWS.forEach(v=>{
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="ic">${v.ic}</span> ${v.label}`;
+    b.onclick = ()=>switchView(v.key);
+    b.id = 'nav-'+v.key;
+    nav.appendChild(b);
+
+    const bb = document.createElement('button');
+    bb.innerHTML = `<span class="ic">${v.ic}</span>${v.label}`;
+    bb.onclick = ()=>switchView(v.key);
+    bb.id = 'bnav-'+v.key;
+    bnav.appendChild(bb);
+  });
+}
+
+let currentView='dashboard';
+function switchView(key, opts){
+  opts = opts || {};
+  currentView = key;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+key).classList.add('active');
+  document.querySelectorAll('.nav button, .bottom-nav button').forEach(b=>b.classList.remove('active'));
+  const nb = document.getElementById('nav-'+key); if(nb) nb.classList.add('active');
+  const bb = document.getElementById('bnav-'+key); if(bb) bb.classList.add('active');
+  const meta = VIEWS.find(v=>v.key===key);
+  document.getElementById('viewTitle').textContent = meta.title;
+  document.getElementById('viewSub').textContent = meta.sub;
+
+  if(key==='add' && !opts.editing) resetRoadForm();
+  if(key==='dashboard') renderDashboard();
+  if(key==='masters') renderMasters();
+  if(key==='report') renderReport();
+  if(key==='add') setTimeout(()=>formMap && formMap.invalidateSize(), 150);
+  if(key==='dashboard') setTimeout(()=>dashMap && dashMap.invalidateSize(), 150);
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* =========================================================
+   MASTER DATA MANAGEMENT
+   ========================================================= */
+let activeMasterType = 'communes';
+
+function renderMasters(){
+  const tabs = document.getElementById('masterTabs');
+  tabs.innerHTML='';
+  MASTER_TYPES.forEach(mt=>{
+    const b = document.createElement('button');
+    b.textContent = mt.label;
+    b.className = mt.key===activeMasterType ? 'active':'';
+    b.onclick = ()=>{ activeMasterType = mt.key; renderMasters(); };
+    tabs.appendChild(b);
+  });
+
+  const mt = MASTER_TYPES.find(m=>m.key===activeMasterType);
+  const parentSel = document.getElementById('masterNewParent');
+  if(mt.parent){
+    parentSel.style.display='';
+    parentSel.innerHTML = '<option value="">— select ' + MASTER_TYPES.find(p=>p.key===mt.parent).label + ' —</option>' +
+      MASTERS[mt.parent].map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  } else {
+    parentSel.style.display='none';
+  }
+
+  const tbody = document.getElementById('masterTbody');
+  tbody.innerHTML='';
+  (MASTERS[activeMasterType]||[]).forEach(item=>{
+    const tr = document.createElement('tr');
+    const parentLabel = mt.parent ? esc(nameOf(mt.parent, item.parentId)||'—') : '—';
+    tr.innerHTML = `
+      <td><input type="text" value="${esc(item.name)}" style="border:none;background:transparent;padding:2px;" onchange="renameMasterItem('${item.id}', this.value)"></td>
+      <td class="hide-mobile">${parentLabel}</td>
+      <td><button class="icon-btn" onclick="deleteMasterItem('${item.id}')" title="Delete">🗑</button></td>`;
+    tbody.appendChild(tr);
+  });
+  if(!(MASTERS[activeMasterType]||[]).length){
+    tbody.innerHTML = '<tr><td colspan="3" class="empty">No entries yet. Add one above.</td></tr>';
+  }
+}
+
+function addMasterItem(){
+  const mt = MASTER_TYPES.find(m=>m.key===activeMasterType);
+  const nameInput = document.getElementById('masterNewName');
+  const name = nameInput.value.trim();
+  if(!name){ toast('Enter a name first'); return; }
+  let parentId = null;
+  if(mt.parent){
+    parentId = document.getElementById('masterNewParent').value;
+    if(!parentId){ toast('Select parent ' + MASTER_TYPES.find(p=>p.key===mt.parent).label); return; }
+  }
+  MASTERS[activeMasterType].push({id:uid(), name, parentId});
+  saveMasters(); nameInput.value=''; renderMasters(); refreshAllDropdowns();
+  toast('Added to ' + mt.label);
+}
+function renameMasterItem(id, newName){
+  const item = MASTERS[activeMasterType].find(x=>x.id===id);
+  if(item){ item.name = newName.trim() || item.name; saveMasters(); refreshAllDropdowns(); }
+}
+function deleteMasterItem(id){
+  if(!confirm('Delete this entry? Roads referencing it will keep the old value as text but the dropdown link will be removed.')) return;
+  MASTERS[activeMasterType] = MASTERS[activeMasterType].filter(x=>x.id!==id);
+  saveMasters(); renderMasters(); refreshAllDropdowns();
+}
+
+// Quick-add from within the road form (small inline add)
+function quickAddMaster(typeKey, selectElId){
+  const name = prompt('Add new ' + MASTER_TYPES.find(m=>m.key===typeKey).label + ':');
+  if(!name || !name.trim()) return;
+  let parentId = null;
+  const mt = MASTER_TYPES.find(m=>m.key===typeKey);
+  if(mt.parent){
+    // infer parent from currently selected related field
+    const parentFieldMap = {panchayats:'f_commune', villages:'f_panchayat'};
+    const pf = parentFieldMap[typeKey];
+    parentId = pf ? document.getElementById(pf).value : null;
+  }
+  const item = {id:uid(), name:name.trim(), parentId};
+  MASTERS[typeKey].push(item);
+  saveMasters(); refreshAllDropdowns();
+  document.getElementById(selectElId).value = item.id;
+  toast('Added');
+}
+
+function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* Populate a <select> from a master list, optionally filtered by parentId */
+function fillSelect(selectEl, typeKey, parentId, placeholder){
+  const items = (MASTERS[typeKey]||[]).filter(x=> parentId===undefined || parentId===null || parentId==='' ? true : x.parentId===parentId);
+  const current = selectEl.value;
+  selectEl.innerHTML = (placeholder? `<option value="">${placeholder}</option>`:'') +
+    items.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('');
+  if(items.some(i=>i.id===current)) selectEl.value = current;
+}
+
+function refreshAllDropdowns(){
+  fillSelect(document.getElementById('f_commune'), 'communes', null, '— select —');
+  fillSelect(document.getElementById('f_constituency'), 'constituencies', null, '— select —');
+  cascadeFilter('commune', true);
+  fillSelect(document.getElementById('f_classification'), 'classifications', null, '— select —');
+  fillSelect(document.getElementById('f_agency'), 'agencies', null, '— select —');
+  fillSelect(document.getElementById('f_roadtype'), 'roadTypes', null, '— select —');
+  fillSelect(document.getElementById('f_worktype'), 'workTypes', null, '— select —');
+  fillSelect(document.getElementById('f_scheme'), 'schemes', null, '— select —');
+  fillSelect(document.getElementById('f_draintype'), 'drainTypes', null, '— select —');
+  buildFilterBar();
+}
+
+function cascadeFilter(level, keepVillage){
+  if(level==='commune'){
+    const communeId = document.getElementById('f_commune').value || null;
+    fillSelect(document.getElementById('f_panchayat'), 'panchayats', communeId || undefined, '— select —');
+  }
+  const panchayatId = document.getElementById('f_panchayat').value || null;
+  fillSelect(document.getElementById('f_village'), 'villages', panchayatId || undefined, '— select —');
+}
+
+function toggleDrainType(){
+  document.getElementById('drainTypeWrap').style.display = document.getElementById('f_drainavail').value==='yes' ? '' : 'none';
+}
+function toggleLockField(){
+  document.getElementById('lockPwWrap').style.display = document.getElementById('f_locked').checked ? '' : 'none';
+}
+
+/* =========================================================
+   ROAD FORM: GEO CAPTURE
+   ========================================================= */
+let formMap, formStartMarker, formEndMarker, formPathLine;
+let currentPath = []; // {lat,lng}
+let currentStart = null, currentEnd = null;
+let tracing = false, watchId = null;
+
+function initFormMap(){
+  if(formMap) return;
+  formMap = L.map('formMap').setView([11.0, 78.5], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(formMap);
+  formPathLine = L.polyline([], {color:'#2a9d8f', weight:4}).addTo(formMap);
+}
+
+function setGpsStatus(msg, ok){
+  const el = document.getElementById('gpsStatus');
+  el.textContent = msg;
+  el.className = 'gps-status ' + (ok===true?'ok':ok===false?'bad':'');
+}
+
+function getPos(){
+  return new Promise((res,rej)=>{
+    if(!navigator.geolocation){ rej(new Error('Geolocation not supported on this device/browser.')); return; }
+    navigator.geolocation.getCurrentPosition(
+      p=>res({lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy}),
+      e=>rej(e), {enableHighAccuracy:true, timeout:15000, maximumAge:2000}
+    );
+  });
+}
+
+async function captureFixedPoint(which){
+  setGpsStatus('Acquiring GPS fix…');
+  try{
+    const p = await getPos();
+    if(which==='start'){ currentStart = p; document.getElementById('startPtBadge').textContent = `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`; }
+    else { currentEnd = p; document.getElementById('endPtBadge').textContent = `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`; }
+    setGpsStatus(`Captured ${which} point (±${Math.round(p.acc)}m).`, true);
+    drawFormMap();
+  }catch(e){
+    setGpsStatus('Could not get GPS fix: ' + (e.message||e.code), false);
+  }
+}
+
+function toggleTracing(){
+  const btn = document.getElementById('traceBtn');
+  if(!tracing){
+    if(!navigator.geolocation){ setGpsStatus('Geolocation not supported.', false); return; }
+    tracing = true; btn.textContent = '⏹ Stop Tracing';
+    setGpsStatus('Tracing… walk along the road.');
+    watchId = navigator.geolocation.watchPosition(p=>{
+      currentPath.push({lat:p.coords.latitude, lng:p.coords.longitude});
+      updatePathBadge(); drawFormMap();
+    }, e=>{ setGpsStatus('GPS error: ' + (e.message||e.code), false); }, {enableHighAccuracy:true, maximumAge:1000});
+  } else {
+    tracing = false; btn.textContent = '▶ Start Tracing';
+    if(watchId!==null) navigator.geolocation.clearWatch(watchId);
+    setGpsStatus('Tracing stopped. ' + currentPath.length + ' points captured.', true);
+  }
+}
+
+async function addWaypointManual(){
+  try{
+    const p = await getPos();
+    currentPath.push({lat:p.lat, lng:p.lng});
+    updatePathBadge(); drawFormMap();
+    setGpsStatus('Waypoint added.', true);
+  }catch(e){ setGpsStatus('Could not get GPS fix: ' + (e.message||e.code), false); }
+}
+
+function clearPath(){
+  currentPath = []; updatePathBadge(); drawFormMap();
+}
+
+function updatePathBadge(){
+  document.getElementById('pathBadge').textContent = currentPath.length + ' points';
+  document.getElementById('autoDistance').textContent = currentPath.length>1 ? (pathLength(currentPath)).toFixed(1) + ' m' : '—';
+}
+
+function pathLength(pts){
+  let d=0;
+  for(let i=1;i<pts.length;i++) d += haversine(pts[i-1], pts[i]);
+  return d;
+}
+function haversine(a,b){
+  const R=6371000, toRad=x=>x*Math.PI/180;
+  const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+  const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+
+function drawFormMap(){
+  initFormMap();
+  const pts = [];
+  if(currentStart) pts.push(currentStart);
+  currentPath.forEach(p=>pts.push(p));
+  if(currentEnd) pts.push(currentEnd);
+
+  formPathLine.setLatLngs(currentPath.map(p=>[p.lat,p.lng]));
+
+  if(formStartMarker){ formMap.removeLayer(formStartMarker); formStartMarker=null; }
+  if(formEndMarker){ formMap.removeLayer(formEndMarker); formEndMarker=null; }
+  if(currentStart) formStartMarker = L.marker([currentStart.lat,currentStart.lng], {title:'Start'}).addTo(formMap).bindPopup('Start');
+  if(currentEnd) formEndMarker = L.marker([currentEnd.lat,currentEnd.lng], {title:'End'}).addTo(formMap).bindPopup('End');
+
+  if(pts.length){
+    formMap.fitBounds(L.latLngBounds(pts.map(p=>[p.lat,p.lng])), {padding:[20,20], maxZoom:17});
+  }
+}
+
+/* =========================================================
+   ROAD FORM: SAVE / RESET / EDIT
+   ========================================================= */
+function resetRoadForm(){
+  document.getElementById('roadForm').reset();
+  document.getElementById('f_id').value='';
+  currentPath = []; currentStart=null; currentEnd=null;
+  document.getElementById('startPtBadge').textContent='not captured';
+  document.getElementById('endPtBadge').textContent='not captured';
+  updatePathBadge();
+  toggleDrainType(); toggleLockField();
+  refreshAllDropdowns();
+  setTimeout(()=>{ initFormMap(); drawFormMap(); }, 50);
+  document.querySelector('#view-add fieldset legend') && (document.querySelector('#view-add h3')||{});
+}
+
+async function saveRoadForm(ev){
+  ev.preventDefault();
+  const id = document.getElementById('f_id').value || uid();
+  const existing = ROADS.find(r=>r.id===id);
+
+  let lockHash = existing ? existing.lockHash : null;
+  const wantLock = document.getElementById('f_locked').checked;
+  if(wantLock){
+    const pw = document.getElementById('f_password').value;
+    if(pw) lockHash = await sha256(pw);
+    else if(!lockHash){ toast('Set a password to lock this entry'); return false; }
+  } else {
+    lockHash = null;
+  }
+
+  const road = {
+    id,
+    commune: document.getElementById('f_commune').value,
+    constituency: document.getElementById('f_constituency').value,
+    panchayat: document.getElementById('f_panchayat').value,
+    village: document.getElementById('f_village').value,
+    classification: document.getElementById('f_classification').value,
+    agency: document.getElementById('f_agency').value,
+    roadtype: document.getElementById('f_roadtype').value,
+    name: document.getElementById('f_name').value.trim(),
+    length: parseFloat(document.getElementById('f_length').value)||0,
+    width: parseFloat(document.getElementById('f_width').value)||0,
+    year: document.getElementById('f_year').value || '',
+    worktype: document.getElementById('f_worktype').value,
+    scheme: document.getElementById('f_scheme').value,
+    drainAvailable: document.getElementById('f_drainavail').value,
+    draintype: document.getElementById('f_drainavail').value==='yes' ? document.getElementById('f_draintype').value : '',
+    remarks: document.getElementById('f_remarks').value.trim(),
+    start: currentStart, end: currentEnd, path: currentPath,
+    locked: wantLock, lockHash,
+    createdAt: existing ? existing.createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if(!road.name){ toast('Road name is required'); return false; }
+
+  const idx = ROADS.findIndex(r=>r.id===id);
+  if(idx>=0) ROADS[idx] = road; else ROADS.push(road);
+  saveRoads();
+  toast('Road entry saved');
+  switchView('dashboard');
+  return false;
+}
+
+async function sha256(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* editing / unlocking */
+let unlockCallback = null;
+let sessionUnlocked = new Set();
+
+function openUnlockModal(road, cb){
+  unlockCallback = {road, cb};
+  document.getElementById('unlockPw').value='';
+  document.getElementById('unlockModal').classList.add('open');
+}
+function closeUnlockModal(){ document.getElementById('unlockModal').classList.remove('open'); unlockCallback=null; }
+async function attemptUnlock(){
+  const pw = document.getElementById('unlockPw').value;
+  const hash = await sha256(pw);
+  if(unlockCallback && hash === unlockCallback.road.lockHash){
+    sessionUnlocked.add(unlockCallback.road.id);
+    const cb = unlockCallback.cb;
+    closeUnlockModal();
+    cb();
+  } else {
+    toast('Incorrect password');
+  }
+}
+
+function editRoad(id){
+  const road = ROADS.find(r=>r.id===id);
+  if(!road) return;
+  if(road.locked && !sessionUnlocked.has(id)){
+    openUnlockModal(road, ()=>editRoad(id));
+    return;
+  }
+  switchView('add', {editing:true});
+  refreshAllDropdowns();
+  document.getElementById('f_id').value = road.id;
+  document.getElementById('f_commune').value = road.commune||'';
+  cascadeFilter('commune');
+  document.getElementById('f_panchayat').value = road.panchayat||'';
+  cascadeFilter();
+  document.getElementById('f_village').value = road.village||'';
+  document.getElementById('f_constituency').value = road.constituency||'';
+  document.getElementById('f_classification').value = road.classification||'';
+  document.getElementById('f_agency').value = road.agency||'';
+  document.getElementById('f_roadtype').value = road.roadtype||'';
+  document.getElementById('f_name').value = road.name||'';
+  document.getElementById('f_length').value = road.length||'';
+  document.getElementById('f_width').value = road.width||'';
+  document.getElementById('f_year').value = road.year||'';
+  document.getElementById('f_worktype').value = road.worktype||'';
+  document.getElementById('f_scheme').value = road.scheme||'';
+  document.getElementById('f_drainavail').value = road.drainAvailable||'no';
+  toggleDrainType();
+  document.getElementById('f_draintype').value = road.draintype||'';
+  document.getElementById('f_remarks').value = road.remarks||'';
+  document.getElementById('f_locked').checked = !!road.locked;
+  toggleLockField();
+  document.getElementById('f_password').value='';
+
+  currentStart = road.start||null; currentEnd = road.end||null; currentPath = road.path||[];
+  document.getElementById('startPtBadge').textContent = currentStart ? `${currentStart.lat.toFixed(6)}, ${currentStart.lng.toFixed(6)}` : 'not captured';
+  document.getElementById('endPtBadge').textContent = currentEnd ? `${currentEnd.lat.toFixed(6)}, ${currentEnd.lng.toFixed(6)}` : 'not captured';
+  updatePathBadge();
+  setTimeout(()=>{ initFormMap(); drawFormMap(); }, 60);
+}
+
+function deleteRoad(id){
+  const road = ROADS.find(r=>r.id===id);
+  if(road && road.locked && !sessionUnlocked.has(id)){
+    openUnlockModal(road, ()=>deleteRoad(id));
+    return;
+  }
+  if(!confirm('Delete this road entry permanently?')) return;
+  ROADS = ROADS.filter(r=>r.id!==id);
+  saveRoads(); renderDashboard();
+  toast('Road deleted');
+}
+
+function viewRoad(id){
+  const road = ROADS.find(r=>r.id===id);
+  if(!road) return;
+  document.getElementById('viewModalTitle').textContent = road.name;
+  const rows = [
+    ['Commune', nameOf('communes', road.commune)],
+    ['Constituency', nameOf('constituencies', road.constituency)],
+    ['Village Panchayat', nameOf('panchayats', road.panchayat)],
+    ['Village', nameOf('villages', road.village)],
+    ['Classification', nameOf('classifications', road.classification)],
+    ['Owning Agency', nameOf('agencies', road.agency)],
+    ['Road Type', nameOf('roadTypes', road.roadtype)],
+    ['Length (m)', road.length],
+    ['Width (m)', road.width],
+    ['Year of Laying', road.year||'—'],
+    ['Work Type', nameOf('workTypes', road.worktype)],
+    ['Scheme', nameOf('schemes', road.scheme)],
+    ['Drain Available', road.drainAvailable],
+    ['Drain Type', road.draintype ? nameOf('drainTypes', road.draintype) : '—'],
+    ['Traverse Points', (road.path||[]).length],
+    ['Remarks', road.remarks || '—'],
+  ];
+  document.getElementById('viewModalBody').innerHTML = '<table>' + rows.map(r=>`<tr><th>${r[0]}</th><td>${esc(String(r[1]??'—'))}</td></tr>`).join('') + '</table>';
+  document.getElementById('viewModal').classList.add('open');
+}
+function closeViewModal(){ document.getElementById('viewModal').classList.remove('open'); }
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+let dashMap, dashLayerGroup;
+let dashMapVisible = false;
+
+function toggleDashMap(){
+  dashMapVisible = !dashMapVisible;
+  document.getElementById('dashMapCard').style.display = dashMapVisible ? '' : 'none';
+  if(dashMapVisible){
+    setTimeout(()=>{ initDashMap(); drawDashMap(getFilteredRoads()); dashMap.invalidateSize(); }, 60);
+  }
+}
+function initDashMap(){
+  if(dashMap) return;
+  dashMap = L.map('dashMap').setView([11.0,78.5], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(dashMap);
+  dashLayerGroup = L.layerGroup().addTo(dashMap);
+}
+function drawDashMap(roads){
+  if(!dashMap) return;
+  dashLayerGroup.clearLayers();
+  const allPts = [];
+  roads.forEach(r=>{
+    const pts = (r.path&&r.path.length) ? r.path : [r.start,r.end].filter(Boolean);
+    if(pts.length>1){
+      L.polyline(pts.map(p=>[p.lat,p.lng]), {color:'#2a9d8f', weight:3}).addTo(dashLayerGroup).bindPopup(esc(r.name));
+      pts.forEach(p=>allPts.push(p));
+    } else if(r.start){
+      L.marker([r.start.lat,r.start.lng]).addTo(dashLayerGroup).bindPopup(esc(r.name));
+      allPts.push(r.start);
+    }
+  });
+  if(allPts.length) dashMap.fitBounds(L.latLngBounds(allPts.map(p=>[p.lat,p.lng])), {padding:[20,20]});
+}
+
+const filters = {commune:'', constituency:'', panchayat:'', village:'', classification:'', roadtype:'', scheme:'', worktype:''};
+
+function buildFilterBar(){
+  const bar = document.getElementById('filterBar');
+  const defs = [
+    ['commune','communes','Commune'],
+    ['constituency','constituencies','Constituency'],
+    ['panchayat','panchayats','Village Panchayat'],
+    ['village','villages','Village'],
+    ['classification','classifications','Classification'],
+    ['roadtype','roadTypes','Type of Road'],
+    ['worktype','workTypes','Work Type'],
+    ['scheme','schemes','Scheme'],
+  ];
+  bar.innerHTML = defs.map(([key,typeKey,label])=>{
+    const opts = (MASTERS[typeKey]||[]).map(i=>`<option value="${i.id}" ${filters[key]===i.id?'selected':''}>${esc(i.name)}</option>`).join('');
+    return `<div class="field"><label>${label}</label><select onchange="setFilter('${key}', this.value)"><option value="">All</option>${opts}</select></div>`;
+  }).join('');
+}
+function setFilter(key, val){ filters[key]=val; renderDashboard(); }
+function clearFilters(){ Object.keys(filters).forEach(k=>filters[k]=''); document.getElementById('globalSearch').value=''; buildFilterBar(); renderDashboard(); }
+
+function getFilteredRoads(){
+  const q = (document.getElementById('globalSearch').value||'').toLowerCase().trim();
+  return ROADS.filter(r=>{
+    for(const k of Object.keys(filters)){
+      if(filters[k] && r[k] !== filters[k]) return false;
+    }
+    if(q){
+      const hay = [r.name, nameOf('villages',r.village), nameOf('panchayats',r.panchayat), nameOf('constituencies',r.constituency), nameOf('communes',r.commune)].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderDashboard(){
+  buildFilterBar();
+  const roads = getFilteredRoads();
+  renderStats(roads);
+  const tbody = document.getElementById('roadsTbody');
+  tbody.innerHTML='';
+  roads.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${esc(r.name)}</td>
+      <td>${esc(nameOf('villages', r.village))}</td>
+      <td>${esc(nameOf('panchayats', r.panchayat))}</td>
+      <td>${esc(nameOf('constituencies', r.constituency))}</td>
+      <td><span class="chip">${esc(nameOf('classifications', r.classification))}</span></td>
+      <td>${esc(nameOf('roadTypes', r.roadtype))}</td>
+      <td>${r.length}</td>
+      <td>${r.width}</td>
+      <td>${esc(nameOf('schemes', r.scheme))}</td>
+      <td>${r.locked ? '<span class="chip locked">🔒 Locked</span>' : '<span class="chip">Open</span>'}</td>
+      <td>
+        <button class="icon-btn" onclick="viewRoad('${r.id}')" title="View">👁</button>
+        <button class="icon-btn" onclick="editRoad('${r.id}')" title="Edit">✏️</button>
+        <button class="icon-btn" onclick="deleteRoad('${r.id}')" title="Delete">🗑</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('roadsEmpty').style.display = roads.length? 'none':'block';
+  if(dashMapVisible){ initDashMap(); drawDashMap(roads); }
+}
+
+function renderStats(roads){
+  const totalLen = roads.reduce((s,r)=>s+(r.length||0),0);
+  const locked = roads.filter(r=>r.locked).length;
+  const panchayats = new Set(roads.map(r=>r.panchayat).filter(Boolean)).size;
+  document.getElementById('statBar').innerHTML = `
+    <div class="stat"><div class="n">${roads.length}</div><div class="l">Total Roads</div></div>
+    <div class="stat"><div class="n">${(totalLen/1000).toFixed(2)}</div><div class="l">Total Length (km)</div></div>
+    <div class="stat"><div class="n">${panchayats}</div><div class="l">Panchayats Covered</div></div>
+    <div class="stat"><div class="n">${locked}</div><div class="l">Locked Entries</div></div>`;
+}
+
+/* =========================================================
+   EXPORTS: EXCEL / CSV / PDF / KML / SHAPEFILE
+   ========================================================= */
+function roadsToRows(roads){
+  return roads.map(r=>({
+    ID:r.id, RoadName:r.name,
+    Commune:nameOf('communes',r.commune), Constituency:nameOf('constituencies',r.constituency),
+    VillagePanchayat:nameOf('panchayats',r.panchayat), Village:nameOf('villages',r.village),
+    Classification:nameOf('classifications',r.classification), OwningAgency:nameOf('agencies',r.agency),
+    RoadType:nameOf('roadTypes',r.roadtype), LengthM:r.length, WidthM:r.width,
+    YearOfLaying:r.year, WorkType:nameOf('workTypes',r.worktype), Scheme:nameOf('schemes',r.scheme),
+    DrainAvailable:r.drainAvailable, DrainType:r.draintype?nameOf('drainTypes',r.draintype):'',
+    StartLat:r.start?r.start.lat:'', StartLng:r.start?r.start.lng:'',
+    EndLat:r.end?r.end.lat:'', EndLng:r.end?r.end.lng:'',
+    PathJSON: JSON.stringify(r.path||[]),
+    Remarks:r.remarks, Locked:r.locked?'Yes':'No',
+    CommuneID:r.commune, ConstituencyID:r.constituency, PanchayatID:r.panchayat, VillageID:r.village,
+    ClassificationID:r.classification, AgencyID:r.agency, RoadTypeID:r.roadtype, WorkTypeID:r.worktype, SchemeID:r.scheme, DrainTypeID:r.draintype,
+    CreatedAt:r.createdAt, UpdatedAt:r.updatedAt,
+  }));
+}
+
+function exportExcel(){
+  const rows = roadsToRows(getFilteredRoads());
+  if(!rows.length){ toast('No roads to export'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Roads');
+  XLSX.writeFile(wb, 'road_registry_' + dateStamp() + '.xlsx');
+}
+function exportCSV(){
+  const rows = roadsToRows(getFilteredRoads());
+  if(!rows.length){ toast('No roads to export'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const csv = XLSX.utils.sheet_to_csv(ws);
+  downloadBlob(csv, 'road_registry_' + dateStamp() + '.csv', 'text/csv');
+}
+function exportPDF(){
+  const roads = getFilteredRoads();
+  if(!roads.length){ toast('No roads to export'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({orientation:'landscape'});
+  doc.setFontSize(14); doc.text('Road Registry Report', 14, 14);
+  doc.setFontSize(9); doc.text('Generated: ' + new Date().toLocaleString(), 14, 20);
+  doc.autoTable({
+    startY:26,
+    head:[['Road Name','Village','Panchayat','Constituency','Classification','Type','Length(m)','Width(m)','Scheme','Year']],
+    body: roads.map(r=>[r.name, nameOf('villages',r.village), nameOf('panchayats',r.panchayat), nameOf('constituencies',r.constituency),
+      nameOf('classifications',r.classification), nameOf('roadTypes',r.roadtype), r.length, r.width, nameOf('schemes',r.scheme), r.year||''
+    ]),
+    styles:{fontSize:8}, headStyles:{fillColor:[22,50,74]},
+  });
+  doc.save('road_registry_' + dateStamp() + '.pdf');
+}
+function exportKML(){
+  const roads = getFilteredRoads();
+  if(!roads.length){ toast('No roads to export'); return; }
+  let kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Road Registry</name>\n`;
+  roads.forEach(r=>{
+    const desc = `Village: ${nameOf('villages',r.village)} | Panchayat: ${nameOf('panchayats',r.panchayat)} | Type: ${nameOf('roadTypes',r.roadtype)} | Length: ${r.length}m`;
+    if(r.path && r.path.length>1){
+      const coords = r.path.map(p=>`${p.lng},${p.lat},0`).join(' ');
+      kml += `<Placemark><name>${xmlesc(r.name)}</name><description>${xmlesc(desc)}</description><LineString><tessellate>1</tessellate><coordinates>${coords}</coordinates></LineString></Placemark>\n`;
+    }
+    if(r.start) kml += `<Placemark><name>${xmlesc(r.name)} - Start</name><Point><coordinates>${r.start.lng},${r.start.lat},0</coordinates></Point></Placemark>\n`;
+    if(r.end) kml += `<Placemark><name>${xmlesc(r.name)} - End</name><Point><coordinates>${r.end.lng},${r.end.lat},0</coordinates></Point></Placemark>\n`;
+  });
+  kml += `</Document></kml>`;
+  downloadBlob(kml, 'road_registry_' + dateStamp() + '.kml', 'application/vnd.google-earth.kml+xml');
+}
+function xmlesc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function exportShapefile(){
+  const roads = getFilteredRoads().filter(r=>r.path && r.path.length>1);
+  if(!roads.length){ toast('No roads with a traced path to export as shapefile'); return; }
+  if(typeof shpwrite === 'undefined'){ toast('Shapefile library unavailable — check internet connection'); return; }
+  const geojson = {
+    type:'FeatureCollection',
+    features: roads.map(r=>({
+      type:'Feature',
+      properties:{ Name:r.name, Village:nameOf('villages',r.village), Panchayat:nameOf('panchayats',r.panchayat),
+        Type:nameOf('roadTypes',r.roadtype), Length_m:r.length, Width_m:r.width, Scheme:nameOf('schemes',r.scheme) },
+      geometry:{ type:'LineString', coordinates: r.path.map(p=>[p.lng,p.lat]) }
+    }))
+  };
+  try{
+    shpwrite.download(geojson, {folder:'road_registry_'+dateStamp(), types:{line:'roads'}});
+  }catch(e){ toast('Shapefile export failed: ' + e.message); }
+}
+
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 3000);
+}
+function dateStamp(){ const d=new Date(); return d.toISOString().slice(0,10); }
+
+/* =========================================================
+   IMPORT (Excel sync)
+   ========================================================= */
+function importExcel(){
+  const fileInput = document.getElementById('importFile');
+  const file = fileInput.files[0];
+  const statusEl = document.getElementById('importStatus');
+  if(!file){ toast('Choose a file first'); return; }
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      let added=0, updated=0;
+      rows.forEach(row=>{
+        const id = row.ID || uid();
+        const road = {
+          id,
+          commune: row.CommuneID || findOrCreate('communes', row.Commune),
+          constituency: row.ConstituencyID || findOrCreate('constituencies', row.Constituency),
+          panchayat: row.PanchayatID || findOrCreate('panchayats', row.VillagePanchayat),
+          village: row.VillageID || findOrCreate('villages', row.Village),
+          classification: row.ClassificationID || findOrCreate('classifications', row.Classification),
+          agency: row.AgencyID || findOrCreate('agencies', row.OwningAgency),
+          roadtype: row.RoadTypeID || findOrCreate('roadTypes', row.RoadType),
+          name: row.RoadName || '',
+          length: parseFloat(row.LengthM)||0, width: parseFloat(row.WidthM)||0,
+          year: row.YearOfLaying||'', worktype: row.WorkTypeID || findOrCreate('workTypes', row.WorkType),
+          scheme: row.SchemeID || findOrCreate('schemes', row.Scheme),
+          drainAvailable: row.DrainAvailable||'no',
+          draintype: row.DrainTypeID || (row.DrainType? findOrCreate('drainTypes', row.DrainType):''),
+          remarks: row.Remarks||'',
+          start: (row.StartLat && row.StartLng)? {lat:parseFloat(row.StartLat), lng:parseFloat(row.StartLng)} : null,
+          end: (row.EndLat && row.EndLng)? {lat:parseFloat(row.EndLat), lng:parseFloat(row.EndLng)} : null,
+          path: (()=>{ try{ return JSON.parse(row.PathJSON||'[]'); }catch(e){ return []; } })(),
+          locked: false, lockHash:null,
+          createdAt: row.CreatedAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
+        };
+        const idx = ROADS.findIndex(r=>r.id===id);
+        if(idx>=0){ ROADS[idx]=road; updated++; } else { ROADS.push(road); added++; }
+      });
+      saveRoads(); saveMasters(); refreshAllDropdowns(); renderDashboard();
+      statusEl.textContent = `Import complete: ${added} added, ${updated} updated.`;
+      toast('Import complete');
+    }catch(err){
+      statusEl.textContent = 'Import failed: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function findOrCreate(typeKey, name){
+  if(!name) return null;
+  name = String(name).trim();
+  if(!name) return null;
+  let item = MASTERS[typeKey].find(x=>x.name.toLowerCase()===name.toLowerCase());
+  if(!item){ item = {id:uid(), name, parentId:null}; MASTERS[typeKey].push(item); }
+  return item.id;
+}
+
+/* Full backup */
+function exportBackup(){
+  const data = JSON.stringify({masters:MASTERS, roads:ROADS, exportedAt:new Date().toISOString()}, null, 2);
+  downloadBlob(data, 'road_registry_backup_' + dateStamp() + '.json', 'application/json');
+}
+function importBackup(){
+  const file = document.getElementById('backupFile').files[0];
+  if(!file){ toast('Choose a backup file'); return; }
+  if(!confirm('This will replace all current masters and roads with the backup contents. Continue?')) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      MASTERS = data.masters || MASTERS;
+      ROADS = data.roads || ROADS;
+      saveMasters(); saveRoads(); refreshAllDropdowns(); renderDashboard();
+      toast('Backup restored');
+    }catch(err){ toast('Restore failed: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+/* =========================================================
+   REPORT
+   ========================================================= */
+function renderReport(){
+  const groupBy = document.getElementById('reportGroupBy').value;
+  const map = {panchayat:['panchayats','panchayat'], constituency:['constituencies','constituency'], classification:['classifications','classification'], roadtype:['roadTypes','roadtype'], scheme:['schemes','scheme']};
+  const [typeKey, field] = map[groupBy];
+  const roads = getFilteredRoads();
+  const groups = {};
+  roads.forEach(r=>{
+    const key = r[field] || '(unspecified)';
+    if(!groups[key]) groups[key] = {count:0, length:0};
+    groups[key].count++; groups[key].length += (r.length||0);
+  });
+  const tbody = document.getElementById('reportTbody');
+  tbody.innerHTML='';
+  Object.entries(groups).sort((a,b)=>b[1].length-a[1].length).forEach(([key,val])=>{
+    const label = key==='(unspecified)' ? '(Unspecified)' : nameOf(typeKey, key) || '(Unspecified)';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${esc(label)}</td><td>${val.count}</td><td>${val.length.toFixed(1)}</td><td>${(val.length/1000).toFixed(2)}</td>`;
+    tbody.appendChild(tr);
+  });
+  if(!Object.keys(groups).length) tbody.innerHTML = '<tr><td colspan="4" class="empty">No data for current filters.</td></tr>';
+}
+function exportReportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14); doc.text('Road Registry — Summary Report', 14, 14);
+  doc.setFontSize(9); doc.text('Grouped by: ' + document.getElementById('reportGroupBy').selectedOptions[0].textContent, 14, 20);
+  doc.text('Generated: ' + new Date().toLocaleString(), 14, 25);
+  const rows = Array.from(document.querySelectorAll('#reportTbody tr')).map(tr=>Array.from(tr.children).map(td=>td.textContent));
+  doc.autoTable({ startY:30, head:[['Group','No. of Roads','Total Length (m)','Total Length (km)']], body: rows, headStyles:{fillColor:[22,50,74]} });
+  doc.save('road_registry_summary_' + dateStamp() + '.pdf');
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+function init(){
+  buildNav();
+  refreshAllDropdowns();
+  switchView('dashboard');
+  toggleDrainType(); toggleLockField();
+}
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
